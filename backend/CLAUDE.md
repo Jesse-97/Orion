@@ -40,3 +40,22 @@ Add hierarchy-preserving chunking:
   document_id, filename, text, page, embedding,
   section, clause, subclause   ← new fields, None if not detected
 }
+
+## Phase 3 Goal
+Add Gemini API synthesis with structured JSON citation output.
+
+- Install: google-generativeai (check disk first with df -h)
+- New file: app/services/synthesis_service.py
+  - Gemini 2.0 Flash model
+  - Structured JSON output (response_mime_type application/json)
+  - Returns: {answer, citation: {document, section, clause, page}, confidence, reasoning}
+  - If top rerank score below -8.0 threshold → return "Insufficient evidence" without API call
+- Modify: app/services/retrieval_service.py
+  - search() currently returns raw chunks
+  - Add synthesis call after reranking: pass top chunks + their metadata to synthesis_service
+  - Return structured citation response instead of raw chunks
+- Modify: app/routes/query_routes.py
+  - Response now returns structured citation JSON not just results list
+- Do NOT modify embedding_model.py, reranker_model.py, hierarchy_parser.py, 
+  ingestion_service.py, or db.py
+- GEMINI_API_KEY already in .env

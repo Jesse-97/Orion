@@ -9,5 +9,5 @@ class QueryRequest(BaseModel):
 
 @router.post("/query")
 async def query_documents(request: QueryRequest):
-    results = search(request.question)
-    return {"query": request.question, "results": results}
+    result = search(request.question, synthesize=True)
+    return {"query": request.question, "response": result}

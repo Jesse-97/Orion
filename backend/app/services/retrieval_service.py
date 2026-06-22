@@ -3,6 +3,7 @@ import numpy as np
 from app.db import chunks_collection
 from app.models.embedding_model import embedding_model
 from app.models.reranker_model import reranker_model
+from app.services import synthesis_service
 
 def build_faiss_index():
     all_chunks = list(chunks_collection.find({}))
@@ -20,10 +21,10 @@ def build_faiss_index():
 
     return index, all_chunks
 
-def search(query: str, top_k_retrieve: int = 10, top_k_rerank: int = 3):
+def search(query: str, top_k_retrieve: int = 10, top_k_rerank: int = 3, synthesize: bool = True):
     index, all_chunks = build_faiss_index()
     if index is None:
-        return []
+        return synthesis_service.synthesize(query, []) if synthesize else []
 
     # Ebedding query WITH prefix
     query_vector = embedding_model.embed_query(query).astype("float32").reshape(1, -1)
@@ -41,12 +42,20 @@ def search(query: str, top_k_retrieve: int = 10, top_k_rerank: int = 3):
     ranked = sorted(zip(candidates, rerank_scores), key=lambda x: x[1], reverse=True)
     top_results = ranked[:top_k_rerank]
 
-    return [
+    top_chunks = [
         {
             "text": chunk["text"],
             "filename": chunk["filename"],
             "page": chunk["page"],
+            "section": chunk.get("section"),
+            "clause": chunk.get("clause"),
+            "subclause": chunk.get("subclause"),
             "relevance_score": float(score)
         }
         for chunk, score in top_results
     ]
+
+    if synthesize:
+        return synthesis_service.synthesize(query, top_chunks)
+
+    return top_chunks
