@@ -59,3 +59,36 @@ Add Gemini API synthesis with structured JSON citation output.
 - Do NOT modify embedding_model.py, reranker_model.py, hierarchy_parser.py, 
   ingestion_service.py, or db.py
 - GEMINI_API_KEY already in .env
+
+## Phase 3.5 — Frontend (React + Vite)
+
+Goal: clean, demoable dark-theme UI for LexRAG. NOT a fancy production UI — 
+a polished portfolio frontend that shows the system off well.
+
+Location: lexrag/frontend/ (sibling to backend/)
+Stack: React 18, Vite, Axios, Tailwind CSS, Framer Motion (animations)
+
+Pages needed:
+1. Upload screen — drag-and-drop or file picker for PDF/DOCX
+2. Query screen — text input, displays structured citation response
+
+Key UI requirements:
+- Dark theme: deep neutrals (zinc/slate), single accent color (cyan or violet)
+- The citation block must be visually distinct — section/clause/page shown 
+  as styled "chips" or badges, not buried in text
+- Confidence indicator: color-coded (high=green, medium=amber, low=red)
+- Loading states: skeleton or spinner during upload and query
+- Smooth fade/slide transitions when answers appear (Framer Motion)
+- Typography: system font stack, larger text for the answer, smaller for citation
+- Responsive: works on mobile and desktop
+
+Backend API (already running on http://localhost:8000):
+- POST /api/upload — multipart file upload, returns {document_id, filename, 
+  pages_extracted, chunks_created}
+- POST /api/query — JSON body {question}, returns {query, response: {answer, 
+  citation: {document, section, clause, page}, confidence, reasoning}}
+
+CORS: backend may need fastapi.middleware.cors configured to allow Vite dev 
+server origin (http://localhost:5173). Add to app/main.py if not present.
+
+Do NOT modify any backend files except adding CORS middleware to main.py.
