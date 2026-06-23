@@ -92,3 +92,41 @@ CORS: backend may need fastapi.middleware.cors configured to allow Vite dev
 server origin (http://localhost:5173). Add to app/main.py if not present.
 
 Do NOT modify any backend files except adding CORS middleware to main.py.
+
+
+## Phase 4 — Sentence-Level Extraction with Neighbour Expansion
+
+Goal: trim each top chunk down to its most relevant sentences before 
+sending to the LLM, while preserving semantic context via neighbour expansion.
+
+Pipeline change:
+  Before: top 3 reranked chunks → full text → LLM
+  After:  top 3 reranked chunks → split into sentences → 
+          cross-encoder scores each sentence vs query → 
+          pick top N sentences per chunk → expand to include 
+          neighbour sentence on each side → 
+          dedupe and reorder by original position → 
+          concatenated extracted text → LLM
+
+Critical rules:
+- REUSE existing reranker_model singleton — do NOT load a second model
+- Configurable params: TOP_SENTENCES_PER_CHUNK = 2, NEIGHBOUR_WINDOW = 1
+- Preserve original sentence order in the output (do not sort by score)
+- Dedupe: if sentence_3 is picked AND sentence_4 is picked, their 
+  neighbour expansions overlap — dedupe by index before reassembling
+- The chunk's hierarchy metadata (section/clause/subclause/page) 
+  remains attached to the extracted text, not the individual sentences
+- Sentence splitting: use simple regex on ". " / "? " / "! " followed 
+  by capital letter — keep simple, no external NLP library
+
+Where it slots in:
+- New file: app/services/extraction_service.py
+- Modify: app/services/retrieval_service.py — after rerank, call 
+  extraction_service.extract(query, top_chunks) before passing to 
+  synthesis_service.synthesize()
+- Keep synthesize=False path returning raw chunks (no extraction) for 
+  debugging
+
+Do NOT modify: embedding_model.py, reranker_model.py (only call its 
+score() method), hierarchy_parser.py, ingestion_service.py, db.py, 
+synthesis_service.py, any frontend file.

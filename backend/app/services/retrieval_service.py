@@ -4,6 +4,7 @@ from app.db import chunks_collection
 from app.models.embedding_model import embedding_model
 from app.models.reranker_model import reranker_model
 from app.services import synthesis_service
+from app.services import extraction_service
 
 def build_faiss_index():
     all_chunks = list(chunks_collection.find({}))
@@ -56,6 +57,7 @@ def search(query: str, top_k_retrieve: int = 10, top_k_rerank: int = 3, synthesi
     ]
 
     if synthesize:
-        return synthesis_service.synthesize(query, top_chunks)
+        extracted_chunks = extraction_service.extract(query, top_chunks)
+        return synthesis_service.synthesize(query, extracted_chunks)
 
     return top_chunks
