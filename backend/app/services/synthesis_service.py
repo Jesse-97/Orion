@@ -1,14 +1,26 @@
+# Ollama implementation of the synthesis service.
+#
+# Synthesis runs against a LOCAL Ollama instance (gemma3:4b on
+# http://localhost:11434) instead of the Gemini API, because the Gemini key is
+# blocked by a Google account-level restriction. Everything else — the function
+# signature synthesize(query, top_chunks), the return schema, the threshold
+# gate, the system prompt, the fence-stripping fallback and the graceful error
+# handling — is unchanged from the Gemini version.
+#
+# Swapping back to Gemini is a single-function change: only the API call inside
+# synthesize() needs to be restored (re-add the genai client + generate_content
+# call); the rest of this module is provider-agnostic.
+
 import json
 
-from google import genai
-
-from app.config import GEMINI_API_KEY
+import requests
 
 # Top rerank score below this -> skip the API call and report insufficient evidence.
 # Chosen from observed reranker scores (relevant ~ -0.71, irrelevant ~ -5.77 / -6.69).
 RELEVANCE_THRESHOLD = -5.0
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "qwen2.5:1.5b"
 
 SYSTEM_PROMPT = """You are a legal document analysis assistant.
 
@@ -95,17 +107,27 @@ def synthesize(query: str, top_chunks: list) -> dict:
     )
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
+        # "format": "json" enforces JSON output natively on Ollama, the local
+        # equivalent of Gemini's response_mime_type="application/json". The
+        # fence-stripping fallback in _parse_response is just defensive.
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "format": "json",
+                "stream": False,
+            },
+            timeout=120,
         )
+        response.raise_for_status()
+        raw = response.json()["response"]
     except Exception as exc:
         return {
             "answer": "Synthesis temporarily unavailable",
             "citation": None,
             "confidence": "low",
-            "reasoning": f"Gemini API call failed: {exc}",
+            "reasoning": f"Ollama API call failed: {exc}",
         }
 
-    return _parse_response(response.text)
+    return _parse_response(raw)
